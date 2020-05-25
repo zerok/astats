@@ -19,8 +19,8 @@ func generateRootCmd() *Command {
 			return nil
 		},
 	}
-	ingestCmd := generateIngestCmd()
-	cmd.AddCommand(ingestCmd.Command)
+	scanCmd := generateScanCmd()
+	cmd.AddCommand(scanCmd.Command)
 	return &Command{&cmd}
 }
 

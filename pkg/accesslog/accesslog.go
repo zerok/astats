@@ -3,11 +3,10 @@ package accesslog
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"io"
-	"strconv"
+	"strings"
 	"time"
-
-	"github.com/vjeantet/grok"
 )
 
 type LineFormat struct {
@@ -15,26 +14,58 @@ type LineFormat struct {
 }
 
 type AccessLogFile struct {
-	Format          LineFormat
 	TimestampFormat string
 	Path            string
 	r               *bufio.Reader
-	g               *grok.Grok
+}
+
+type LogEntryResponseHeaders struct {
+	RawContentTypes []string `json:"Content-Type"`
+	RawUserAgents   []string `json:"User-Agent"`
+}
+
+func (h *LogEntryResponseHeaders) ContentType() string {
+	if len(h.RawContentTypes) > 0 {
+		elems := strings.Split(h.RawContentTypes[0], ";")
+		if len(elems) > 0 {
+			return elems[0]
+		}
+		return ""
+	}
+	return ""
+}
+
+type LogEntryRequestHeaders struct {
+	RawReferrers []string `json:"Referer"`
+}
+
+func (h *LogEntryRequestHeaders) Referrer() string {
+	if len(h.RawReferrers) > 0 {
+		return h.RawReferrers[0]
+	}
+	return ""
+}
+
+type LogEntryRequest struct {
+	Method     string                 `json:"method"`
+	URI        string                 `json:"uri"`
+	RemoteAddr string                 `json:"remote_addr"`
+	Host       string                 `json:"host"`
+	Headers    LogEntryRequestHeaders `json:"headers"`
 }
 
 type LogEntry struct {
-	Time       time.Time
-	StatusCode int
-	SourceIP   string
-	Path       string
-	UserAgent  string
-	Referrer   string
+	Time            time.Time
+	Timestamp       float64                 `json:"ts"`
+	Size            int64                   `json:"size"`
+	Duration        float64                 `json:"duration"`
+	StatusCode      int                     `json:"status"`
+	Request         LogEntryRequest         `json:"request"`
+	ResponseHeaders LogEntryResponseHeaders `json:"resp_headers"`
 }
 
 func (lf *AccessLogFile) InitFromReader(r io.Reader) error {
 	lf.r = bufio.NewReader(r)
-	lf.g, _ = grok.New()
-	lf.g.AddPattern("TIME_LOCAL", "%{MONTHDAY}/%{MONTH}/%{YEAR}:%{HOUR}:%{MINUTE}:%{SECOND} %{ISO8601_TIMEZONE}")
 	return nil
 }
 
@@ -45,27 +76,10 @@ func (lf *AccessLogFile) NextLine(ctx context.Context) (*LogEntry, error) {
 			return nil, err
 		}
 	}
-	result := LogEntry{}
-	values, err := lf.g.Parse("%{IP:ip} - %{DATA:remote_user} \\[%{TIME_LOCAL:timestamp}\\] \"%{DATA:verb} %{DATA:path} %{DATA:http_version}\" %{DATA:response_code} %{DATA:response_size} \"%{DATA:referrer}\" \"%{DATA:user_agent}\"", line)
-	if err != nil {
+	result := &LogEntry{}
+	if err := json.Unmarshal([]byte(line), result); err != nil {
 		return nil, err
 	}
-	result.Path = values["path"]
-	result.SourceIP = values["ip"]
-	result.UserAgent = values["user_agent"]
-	result.Referrer = values["referrer"]
-	if values["response_code"] != "" {
-		result.StatusCode, err = strconv.Atoi(values["response_code"])
-		if err != nil {
-			return nil, err
-		}
-	}
-	if values["timestamp"] != "" {
-		ts, err := time.Parse("02/Jan/2006:15:04:05 MST", values["timestamp"])
-		if err != nil {
-			return nil, err
-		}
-		result.Time = ts
-	}
-	return &result, nil
+	result.Time = time.Unix(int64(result.Timestamp), 0)
+	return result, nil
 }
