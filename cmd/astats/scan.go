@@ -33,10 +33,10 @@ func (p PageCountByCount) Swap(i, j int) {
 }
 
 func generateScanCmd() *Command {
-	var dbPath string
 	var todayOnly bool
 	var filterContent string
 	var topViewCount int
+	var hide404 bool
 	cmd := cobra.Command{
 		Use:   "scan INPUTFILE",
 		Short: "Load new log statements and show a summary",
@@ -114,15 +114,17 @@ func generateScanCmd() *Command {
 				fmt.Printf("%5d %s\n", v.Count, v.URI)
 			}
 
-			fmt.Printf("\n%s\n%s\n", aurora.BrightWhite("404 URLs:").Bold(), aurora.BrightWhite("---------").Bold())
-			for u := range errs404 {
-				fmt.Printf("%s\n", u)
+			if !hide404 {
+				fmt.Printf("\n%s\n%s\n", aurora.BrightWhite("404 URLs:").Bold(), aurora.BrightWhite("---------").Bold())
+				for u := range errs404 {
+					fmt.Printf("%s\n", u)
+				}
 			}
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&dbPath, "database-path", "astats.sqlite", "Path to the SQLite store")
 	cmd.Flags().BoolVar(&todayOnly, "today", false, "Set the date range to today-only")
+	cmd.Flags().BoolVar(&hide404, "hide-404", false, "Hide 404 URLs")
 	cmd.Flags().StringVar(&filterContent, "content-type", "", "Show only specific content types")
 	cmd.Flags().IntVar(&topViewCount, "top", 10, "Show only the top n pages")
 	return &Command{&cmd}

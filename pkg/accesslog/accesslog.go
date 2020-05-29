@@ -80,6 +80,7 @@ func (lf *AccessLogFile) NextLine(ctx context.Context) (*LogEntry, error) {
 	if err := json.Unmarshal([]byte(line), result); err != nil {
 		return nil, err
 	}
-	result.Time = time.Unix(int64(result.Timestamp), 0)
+	nanos := int64((result.Timestamp - float64(int64(result.Timestamp))) * 1000000000)
+	result.Time = time.Unix(int64(result.Timestamp), nanos)
 	return result, nil
 }
