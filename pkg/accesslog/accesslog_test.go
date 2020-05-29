@@ -19,7 +19,7 @@ func TestParseLine(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "/", readLine.Request.URI)
 	require.NoError(t, err)
-	require.Equal(t, time.Date(2020, time.May, 14, 6, 9, 3, 0, time.UTC), readLine.Time.In(time.UTC))
+	require.Equal(t, time.Date(2020, time.May, 14, 6, 9, 3, 345854759, time.UTC), readLine.Time.In(time.UTC))
 	_, err = lf.NextLine(ctx)
 	require.Error(t, err)
 }
