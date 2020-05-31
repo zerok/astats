@@ -40,7 +40,7 @@ func isRelevantReferrer(ref string, ownDomain string) bool {
 	if !strings.HasPrefix(ref, "http") {
 		return false
 	}
-	skipDomains := []string{"duckduckgo.com", "fraidyc.at", "www.google.com", "baidu.com", "t.co", "www.feedly.com", "www.findyour.blog", "www.google.co.uk", ownDomain}
+	skipDomains := []string{"duckduckgo.com", "fraidyc.at", "baidu.com", "t.co", "www.feedly.com", "feedly.com", "www.findyour.blog", "www.google", "m.baidu.com", ownDomain}
 	for _, d := range skipDomains {
 		if strings.HasPrefix(ref, "http://"+d) || strings.HasPrefix(ref, "https://"+d) {
 			return false

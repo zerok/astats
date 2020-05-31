@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 	"github.com/spf13/cobra"
 	"github.com/zerok/astats/pkg/accesslog"
 	"github.com/zerok/sqlitemigrate"
@@ -40,6 +40,14 @@ func init() {
 			id integer not null primary key autoincrement,
 			log_timestamp text not null
 		 )`,
+	}, []string{})
+
+	migrations.RegisterMigration([]string{
+		`create table referrers (
+			source_id integer not null references urls (id) on delete cascade,
+			target_id integer not null references urls (id) on delete cascade
+		 )`,
+		`create unique index referrers_idx on referrers(source_id, target_id)`,
 	}, []string{})
 }
 
@@ -110,6 +118,13 @@ func generateIngestCmd() *Command {
 				}
 				viewCounts[entry.Request.URI] = viewCounts[entry.Request.URI] + 1
 				newViews[date] = viewCounts
+				ref := entry.Request.Headers.Referrer()
+				if isRelevantReferrer(ref, ownDomain) {
+					if err := addReferrer(ctx, tx, ref, entry.Request.URI); err != nil {
+						tx.Rollback()
+						return err
+					}
+				}
 			}
 			// Now let's add those to the database:
 			for date, views := range newViews {
@@ -141,6 +156,26 @@ func generateIngestCmd() *Command {
 func updateInjestionState(ctx context.Context, tx *sql.Tx, ts int64) error {
 	_, err := tx.ExecContext(ctx, "INSERT INTO ingestion_states (log_timestamp) values (?)", ts)
 	return err
+}
+
+func addReferrer(ctx context.Context, tx *sql.Tx, source string, target string) error {
+	sourceID, err := getOrCreateURL(ctx, tx, source)
+	if err != nil {
+		return err
+	}
+	targetID, err := getOrCreateURL(ctx, tx, target)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "INSERT INTO referrers (source_id, target_id) values (?, ?)", sourceID, targetID); err != nil {
+		if e, ok := err.(sqlite3.Error); ok {
+			if e.ExtendedCode == sqlite3.ErrConstraintUnique {
+				return nil
+			}
+		}
+		return err
+	}
+	return nil
 }
 
 func incrementViewCount(ctx context.Context, tx *sql.Tx, uid int64, date string, incr int64) error {
