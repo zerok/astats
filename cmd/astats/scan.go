@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/logrusorgru/aurora"
@@ -30,6 +31,22 @@ func (p PageCountByCount) Swap(i, j int) {
 	o := p[i]
 	p[i] = p[j]
 	p[j] = o
+}
+
+func isRelevantReferrer(ref string, ownDomain string) bool {
+	if ref == "" {
+		return false
+	}
+	if !strings.HasPrefix(ref, "http") {
+		return false
+	}
+	skipDomains := []string{"duckduckgo.com", "fraidyc.at", "www.google.com", "baidu.com", "t.co", "www.feedly.com", "www.findyour.blog", "www.google.co.uk", ownDomain}
+	for _, d := range skipDomains {
+		if strings.HasPrefix(ref, "http://"+d) || strings.HasPrefix(ref, "https://"+d) {
+			return false
+		}
+	}
+	return true
 }
 
 func generateScanCmd() *Command {
@@ -63,6 +80,7 @@ func generateScanCmd() *Command {
 				daterange_start = time.Date(ny, nm, nd, 0, 0, 0, 0, time.Local)
 			}
 			views := make(map[string]int64)
+			referrers := make(map[string]map[string]struct{})
 			errs404 := make(map[string]int64)
 			idx := -1
 			for {
@@ -93,6 +111,15 @@ func generateScanCmd() *Command {
 					if y == ny && m == nm && d == nd {
 						count := views[line.Request.URI]
 						views[line.Request.URI] = count + 1
+						ref := line.Request.Headers.Referrer()
+						if isRelevantReferrer(ref, ownDomain) {
+							refs, ok := referrers[line.Request.URI]
+							if !ok {
+								refs = make(map[string]struct{})
+							}
+							refs[line.Request.Headers.Referrer()] = struct{}{}
+							referrers[line.Request.URI] = refs
+						}
 					}
 				}
 			}
@@ -118,6 +145,13 @@ func generateScanCmd() *Command {
 				fmt.Printf("\n%s\n%s\n", aurora.BrightWhite("404 URLs:").Bold(), aurora.BrightWhite("---------").Bold())
 				for u := range errs404 {
 					fmt.Printf("%s\n", u)
+				}
+			}
+			fmt.Printf("\n%s\n%s\n", aurora.BrightWhite("Referrers:").Bold(), aurora.BrightWhite("---------").Bold())
+			for u, refs := range referrers {
+				fmt.Printf("\n %s\n", u)
+				for r := range refs {
+					fmt.Printf("    %s\n", r)
 				}
 			}
 			return nil

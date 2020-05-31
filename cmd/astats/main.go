@@ -12,6 +12,8 @@ type Command struct {
 	*cobra.Command
 }
 
+var ownDomain string
+
 func generateRootCmd() *Command {
 	cmd := cobra.Command{
 		Use: "astats",
@@ -25,6 +27,7 @@ func generateRootCmd() *Command {
 	cmd.AddCommand(scanCmd.Command)
 	cmd.AddCommand(ingestCmd.Command)
 	cmd.AddCommand(queryCmd.Command)
+	cmd.PersistentFlags().StringVar(&ownDomain, "domain", "zerokspot.com", "Domain of the site to be analyzed")
 	return &Command{&cmd}
 }
 
